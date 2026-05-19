@@ -251,9 +251,41 @@ if secao == "AMBOS":
 else:
     df_sec = df_all[df_all["SEÇÃO"] == secao].copy()
 
-# ── Universo fixo de tipos (para animação estável) ────────────────────────────
-# Sempre os mesmos itens na mesma ordem → garante transição suave
-ALL_TIPOS = sorted(df_all["DESC_CURTA"].unique().tolist())
+# ── Ordem GLOBAL FIXA das categorias (calculada uma vez, nunca muda) ──────────
+# A animação do Plotly só funciona quando as categorias estão sempre nas mesmas
+# posições. Por isso ordenamos pelo total acumulado de TODOS os meses e seções,
+# e essa ordem é usada em TODOS os renders, independente de filtro/mês/seção.
+@st.cache_data
+def compute_tipo_order_global(path: str) -> list[str]:
+    """Retorna tipos ordenados por total global crescente (menor embaixo, maior no topo)."""
+    raw = pd.read_csv(path, sep=";", header=None, encoding="utf-8-sig", dtype=str)
+    month_row = raw.iloc[0].fillna("").tolist()
+    sub_row   = raw.iloc[1].fillna("").tolist()
+    current_month, col_map = "", {}
+    for i, (m, s) in enumerate(zip(month_row, sub_row)):
+        if m.strip(): current_month = m.strip()
+        if s.strip() and i > 0: col_map[i] = (current_month, s.strip())
+
+    data_rows = raw.iloc[2:].reset_index(drop=True)
+    totals: dict[str, float] = {}
+    for _, row in data_rows.iterrows():
+        desc = str(row.iloc[0]).strip()
+        if not desc or desc in ("nan",) or desc.startswith("TOTAL"): continue
+        if "VEÍCULOS" in desc: continue
+        curta = desc
+        for suf in (" VISITANTE", " LOCAL"):
+            if curta.endswith(suf):
+                curta = curta[: -len(suf)].strip()
+        for ci, (_, sub) in col_map.items():
+            if sub == "QTD":
+                vs = str(row.iloc[ci]).replace(".", "").replace(",", ".").strip()
+                try: totals[curta] = totals.get(curta, 0) + float(vs)
+                except: pass
+    # ascending → menor acumulado na base, maior no topo (gráfico horizontal)
+    return sorted(totals, key=lambda t: totals[t])
+
+TIPO_ORDER_FIXED: list[str] = compute_tipo_order_global(CSV_PATH)
+TIPO_INDEX_MAP:  dict[str, int] = {t: i for i, t in enumerate(TIPO_ORDER_FIXED)}
 
 def build_long(section_df):
     rows = []
@@ -272,22 +304,21 @@ def build_long(section_df):
 df_long = build_long(df_sec)
 
 def get_chart_df(mes_or_acum) -> pd.DataFrame:
-    """Retorna df com TODOS os tipos, alinhados em ALL_TIPOS, valor 0 se ausente."""
+    """
+    Retorna SEMPRE os mesmos tipos na MESMA ordem fixa (TIPO_ORDER_FIXED).
+    Tipos sem dados no filtro atual recebem valor 0.
+    Isso é o requisito fundamental para o Plotly.react() animar suavemente:
+    estrutura idêntica entre renders → só os valores X mudam → transição fluida.
+    """
     if mes_or_acum == "__acumulado__":
-        agg = df_long.groupby("Descrição", as_index=False)["Valor"].sum()
+        agg = df_long.groupby("Descrição")["Valor"].sum()
     else:
         subset = df_long[df_long["Mês"] == mes_or_acum]
-        agg = subset.groupby("Descrição", as_index=False)["Valor"].sum()
+        agg = subset.groupby("Descrição")["Valor"].sum()
 
-    # Garante todos os tipos e ordem consistente (para animação)
-    base = pd.DataFrame({"Descrição": ALL_TIPOS})
-    merged = base.merge(agg, on="Descrição", how="left").fillna(0)
-    # Remove linhas onde valor é 0 E o tipo nunca aparece em nenhum mês
-    max_por_tipo = df_long.groupby("Descrição")["Valor"].max()
-    tipos_com_dados = max_por_tipo[max_por_tipo > 0].index
-    merged = merged[merged["Descrição"].isin(tipos_com_dados)]
-    merged = merged.sort_values("Valor", ascending=True)
-    return merged.reset_index(drop=True)
+    # Constrói lista de valores na ordem fixa global — 0 para tipos ausentes
+    valores = [float(agg.get(t, 0)) for t in TIPO_ORDER_FIXED]
+    return pd.DataFrame({"Descrição": TIPO_ORDER_FIXED, "Valor": valores})
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -395,8 +426,21 @@ hover_tpl = (
     "<extra></extra>"
 )
 
-# ── Animação: height FIXO + transition no layout ──────────────────────────────
-CHART_HEIGHT = 560   # fixo → Plotly reutiliza o mesmo canvas → transição funciona
+# ── Animação ───────────────────────────────────────────────────────────────────
+# Para o Plotly.react() animar corretamente entre renders:
+#   1. key fixo        → Streamlit reutiliza o mesmo elemento DOM
+#   2. height fixo     → sem resize → sem recriação do canvas
+#   3. categoryarray   → SEMPRE a mesma lista na mesma ordem (TIPO_ORDER_FIXED)
+#   4. N pontos fixo   → estrutura idêntica entre renders
+#   5. transition      → Plotly interpola os valores X suavemente
+CHART_HEIGHT = 560
+
+# Calcula range X máximo global para não mudar entre renders (causaria recriação)
+max_val_global = max(
+    (df_long.groupby("Descrição")["Valor"].sum().max() if not df_long.empty else 1),
+    1
+)
+X_RANGE_MAX = max_val_global * 1.22
 
 fig = go.Figure()
 fig.add_trace(go.Bar(
@@ -440,15 +484,16 @@ fig.update_layout(
         showline=False,
         tickfont=dict(size=10, color=T["text_muted"]),
         title=dict(text=metrica_label, font=dict(size=11, color=T["text_muted"])),
-        range=[0, df_grafico["Valor"].max() * 1.18 if not df_grafico.empty else 1],
+        # Range FIXO global → não muda entre renders → animação suave
+        range=[0, X_RANGE_MAX],
     ),
     yaxis=dict(
         gridcolor="rgba(0,0,0,0)",
         tickfont=dict(size=10, color=T["text_primary"]),
         automargin=True,
-        # Ordem fixa garante animação por interpolação, não por reconstrução
+        # ORDEM FIXA GLOBAL → nunca muda entre renders → Plotly anima só os valores X
         categoryorder="array",
-        categoryarray=df_grafico["Descrição"].tolist(),
+        categoryarray=TIPO_ORDER_FIXED,
     ),
     margin=dict(t=44, b=24, l=10, r=90),
     height=CHART_HEIGHT,
