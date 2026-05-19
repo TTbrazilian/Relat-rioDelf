@@ -226,7 +226,7 @@ with st.sidebar:
     metrica = st.radio(
         "**Métrica exibida**",
         ["QTD", "EST PASSAGEIROS"],
-        format_func=lambda x: "🚗 Quantidade de veículos" if x == "QTD" else "👥 Est. passageiros",
+        format_func=lambda x: "🚗 Quantidade" if x == "QTD" else "👥 Est. passageiros",
     )
     st.markdown("---")
 
@@ -241,7 +241,7 @@ with st.sidebar:
 # ── Derivados ─────────────────────────────────────────────────────────────────
 COR_SECAO     = COR_VISITANTE if secao == "VISITANTE" else COR_LOCAL
 LABEL_SECAO   = "Visitante"   if secao == "VISITANTE" else "Local"
-metrica_label = "Quantidade de Veículos" if metrica == "QTD" else "Estimativa de Passageiros"
+metrica_label = "Quantidade" if metrica == "QTD" else "Estimativa de Passageiros"
 
 df_sec = df_all[df_all["SEÇÃO"] == secao].copy()
 
