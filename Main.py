@@ -47,6 +47,7 @@ T = {
 
 COR_VISITANTE = "#3B82F6" if DARK else "#2E75B6"
 COR_LOCAL     = "#34D399" if DARK else "#16A34A"
+COR_AMBOS     = "#A78BFA" if DARK else "#7C3AED"
 
 # ── CSS dinâmico ──────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -58,20 +59,17 @@ html, body,
     background-color: {T['bg']} !important;
     color: {T['text_primary']} !important;
 }}
-[data-testid="stSidebar"] {{
-    background: {T['sidebar_bg']} !important;
-}}
-[data-testid="stSidebar"] *       {{ color: #FFFFFF !important; }}
-[data-testid="stSidebar"] small   {{ color: rgba(255,255,255,.6) !important; }}
+[data-testid="stSidebar"] {{ background: {T['sidebar_bg']} !important; }}
+[data-testid="stSidebar"] *     {{ color: #FFFFFF !important; }}
+[data-testid="stSidebar"] small {{ color: rgba(255,255,255,.6) !important; }}
 
-/* textos gerais fora da sidebar */
 [data-testid="stMarkdownContainer"] p,
 [data-testid="stMarkdownContainer"] span,
 [data-testid="stMarkdownContainer"] li {{
     color: {T['text_primary']} !important;
 }}
 
-/* cards KPI */
+/* ── KPI cards ── */
 .kpi-card {{
     background: {T['card_bg']};
     border: 1px solid {T['card_border']};
@@ -82,21 +80,26 @@ html, body,
 .kpi-val {{ font-size: 1.85rem; font-weight: 700; color: {T['text_primary']}; }}
 .kpi-lab {{ font-size: .78rem; color: {T['text_secondary']}; margin-top: 5px; }}
 
-/* badge seção */
+/* ── badge seção ── */
 .section-badge {{
     display:inline-block; padding:4px 16px; border-radius:20px;
     font-weight:600; font-size:.88rem; margin-bottom:14px;
 }}
 
-/* container gráfico */
-.chart-card {{
-    background: {T['card_bg']};
-    border: 1px solid {T['card_border']};
-    border-radius: 14px; padding: 22px 18px 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,{'.32' if DARK else '.07'});
+/* ── GRÁFICO: remove espaço extra e aplica card diretamente no container plotly ── */
+[data-testid="stPlotlyChart"] {{
+    background: {T['card_bg']} !important;
+    border: 1px solid {T['card_border']} !important;
+    border-radius: 14px !important;
+    padding: 8px 4px 4px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,{'.32' if DARK else '.07'}) !important;
+}}
+/* Iframe interno do plotly — fundo igual ao card */
+[data-testid="stPlotlyChart"] iframe {{
+    border-radius: 10px !important;
 }}
 
-/* pills meses */
+/* ── Pills meses ── */
 div[data-testid="stHorizontalBlock"] button {{
     border-radius: 999px !important;
     border: 1.5px solid {T['input_border']} !important;
@@ -110,29 +113,24 @@ div[data-testid="stHorizontalBlock"] button:hover {{
     background: {'#334155' if DARK else '#F1F5F9'} !important;
 }}
 
-/* botão download */
+/* ── Botão download ── */
 [data-testid="stDownloadButton"] button {{
     background: {T['card_bg']} !important;
     border: 1px solid {T['input_border']} !important;
     color: {T['text_primary']} !important;
     border-radius: 8px !important;
 }}
-
 hr {{ border-color: {T['card_border']} !important; }}
 </style>
 """, unsafe_allow_html=True)
 
-# ── Bandeira — arquivo local do repositório ───────────────────────────────────
+# ── Bandeira ──────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def get_flag_b64() -> str:
-    """Carrega Bandeira.png do repositório como base64."""
-    for candidate in [Path("Bandeira.png"),
-                      Path("Relat-rioDelf/Bandeira.png"),
-                      Path("relat-riodelf/Bandeira.png")]:
-        if candidate.exists():
-            data = candidate.read_bytes()
-            return "data:image/png;base64," + base64.b64encode(data).decode()
-    # fallback SVG simples
+    for p in [Path("Bandeira.png"), Path("Relat-rioDelf/Bandeira.png"),
+              Path("relat-riodelf/Bandeira.png")]:
+        if p.exists():
+            return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
     svg = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 240'>"
            "<rect width='360' height='240' fill='#1a3a6e'/>"
            "<rect x='0' y='80' width='360' height='80' fill='white'/>"
@@ -144,7 +142,7 @@ def get_flag_b64() -> str:
 
 flag_src = get_flag_b64()
 
-# ── Carrega & parseia CSV ─────────────────────────────────────────────────────
+# ── Carrega CSV ───────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data(path: str):
     raw = pd.read_csv(path, sep=";", header=None, encoding="utf-8-sig", dtype=str)
@@ -185,10 +183,10 @@ def load_data(path: str):
         "Feriados Abril 2026","Feriados Maio 2026",
     ]
     meses_ok = [m for m in mes_ordem if m in {k[0] for k in col_map.values()}]
-    return df, meses_ok, col_map
+    return df, meses_ok
 
 CSV_PATH = "Relatório_Balsa_Delfs_2026.csv"
-df_all, MESES, col_map = load_data(CSV_PATH)
+df_all, MESES = load_data(CSV_PATH)
 
 ABREV = {
     "Janeiro 2026":"Jan","Fevereiro 2026":"Fev","Março 2026":"Mar",
@@ -206,8 +204,7 @@ with st.sidebar:
     st.markdown(f"""
     <div style="text-align:center;margin-bottom:14px">
       <img src="{flag_src}"
-           style="width:90%;border-radius:10px;
-                  border:2px solid rgba(255,255,255,.35);
+           style="width:90%;border-radius:10px;border:2px solid rgba(255,255,255,.35);
                   box-shadow:0 4px 14px rgba(0,0,0,.5)"
            alt="Bandeira de Delfinópolis">
     </div>
@@ -217,10 +214,15 @@ with st.sidebar:
     st.markdown("**Relatório de Tráfego — 2026**")
     st.markdown("---")
 
+    # ── Tipo de veículo com opção Acumulado V+L ──────────────────────────────
     secao = st.radio(
         "**Tipo de veículo**",
-        ["VISITANTE", "LOCAL"],
-        format_func=lambda x: "🔵 Visitante" if x == "VISITANTE" else "🟢 Local",
+        ["VISITANTE", "LOCAL", "AMBOS"],
+        format_func=lambda x: {
+            "VISITANTE": "🔵 Visitante",
+            "LOCAL"    : "🟢 Local",
+            "AMBOS"    : "🟣 Visitante + Local",
+        }[x],
     )
     st.markdown("---")
     metrica = st.radio(
@@ -238,37 +240,54 @@ with st.sidebar:
     st.markdown("<small style='opacity:.6'>Dados: Relatório Balsa Delfs 2026</small>",
                 unsafe_allow_html=True)
 
-# ── Derivados ─────────────────────────────────────────────────────────────────
-COR_SECAO     = COR_VISITANTE if secao == "VISITANTE" else COR_LOCAL
-LABEL_SECAO   = "Visitante"   if secao == "VISITANTE" else "Local"
+# ── Cor e label da seção ──────────────────────────────────────────────────────
+COR_SECAO = {"VISITANTE": COR_VISITANTE, "LOCAL": COR_LOCAL, "AMBOS": COR_AMBOS}[secao]
+LABEL_SECAO = {"VISITANTE": "Visitante", "LOCAL": "Local", "AMBOS": "Visitante + Local"}[secao]
 metrica_label = "Quantidade" if metrica == "QTD" else "Estimativa de Passageiros"
 
-df_sec = df_all[df_all["SEÇÃO"] == secao].copy()
+# ── Filtro de seção ───────────────────────────────────────────────────────────
+if secao == "AMBOS":
+    df_sec = df_all.copy()
+else:
+    df_sec = df_all[df_all["SEÇÃO"] == secao].copy()
 
-# long com todos os meses (para KPIs e tabela)
-long_rows = []
-for mes in MESES:
-    col_key = (mes, metrica)
-    if col_key in df_sec.columns:
-        tmp = df_sec[["DESC_CURTA", col_key]].copy()
+# ── Universo fixo de tipos (para animação estável) ────────────────────────────
+# Sempre os mesmos itens na mesma ordem → garante transição suave
+ALL_TIPOS = sorted(df_all["DESC_CURTA"].unique().tolist())
+
+def build_long(section_df):
+    rows = []
+    for mes in MESES:
+        col_key = (mes, metrica)
+        if col_key not in section_df.columns:
+            continue
+        tmp = section_df[["DESC_CURTA", col_key]].copy()
         tmp.columns = ["Descrição", "Valor"]
+        tmp = tmp.groupby("Descrição", as_index=False)["Valor"].sum()
         tmp["Mês"] = mes
-        long_rows.append(tmp)
-df_long = (pd.concat(long_rows, ignore_index=True)
-           if long_rows else pd.DataFrame(columns=["Descrição","Valor","Mês"]))
+        rows.append(tmp)
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(
+        columns=["Descrição","Valor","Mês"])
 
-def get_mes_df(mes: str) -> pd.DataFrame:
-    col_key = (mes, metrica)
-    if col_key not in df_sec.columns:
-        return pd.DataFrame(columns=["Descrição","Valor"])
-    tmp = df_sec[["DESC_CURTA", col_key]].copy()
-    tmp.columns = ["Descrição","Valor"]
-    return tmp.sort_values("Valor", ascending=True)
+df_long = build_long(df_sec)
 
-def get_acumulado_df() -> pd.DataFrame:
-    """Soma de todos os meses por tipo de veículo."""
-    return (df_long.groupby("Descrição", as_index=False)["Valor"]
-            .sum().sort_values("Valor", ascending=True))
+def get_chart_df(mes_or_acum) -> pd.DataFrame:
+    """Retorna df com TODOS os tipos, alinhados em ALL_TIPOS, valor 0 se ausente."""
+    if mes_or_acum == "__acumulado__":
+        agg = df_long.groupby("Descrição", as_index=False)["Valor"].sum()
+    else:
+        subset = df_long[df_long["Mês"] == mes_or_acum]
+        agg = subset.groupby("Descrição", as_index=False)["Valor"].sum()
+
+    # Garante todos os tipos e ordem consistente (para animação)
+    base = pd.DataFrame({"Descrição": ALL_TIPOS})
+    merged = base.merge(agg, on="Descrição", how="left").fillna(0)
+    # Remove linhas onde valor é 0 E o tipo nunca aparece em nenhum mês
+    max_por_tipo = df_long.groupby("Descrição")["Valor"].max()
+    tipos_com_dados = max_por_tipo[max_por_tipo > 0].index
+    merged = merged[merged["Descrição"].isin(tipos_com_dados)]
+    merged = merged.sort_values("Valor", ascending=True)
+    return merged.reset_index(drop=True)
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -283,25 +302,25 @@ st.markdown(f"""
 st.markdown(f"""
 <span class='section-badge'
   style='background:{COR_SECAO}22;color:{COR_SECAO};border:1.5px solid {COR_SECAO}'>
-  {'🔵' if secao=='VISITANTE' else '🟢'}&nbsp; Veículos {LABEL_SECAO}s
-  &nbsp;·&nbsp; {metrica}
+  {'🔵' if secao=='VISITANTE' else '🟢' if secao=='LOCAL' else '🟣'}
+  &nbsp; Veículos {LABEL_SECAO} &nbsp;·&nbsp; {metrica}
 </span>
 """, unsafe_allow_html=True)
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
-total_geral   = df_long["Valor"].sum()
-por_mes       = df_long.groupby("Mês")["Valor"].sum()
-mes_destaque  = por_mes.idxmax() if not por_mes.empty else "—"
-val_destaque  = por_mes.max()    if not por_mes.empty else 0
-n_tipos       = df_sec["DESC_CURTA"].nunique()
+total_geral  = df_long["Valor"].sum()
+por_mes      = df_long.groupby("Mês")["Valor"].sum()
+mes_destaque = por_mes.idxmax() if not por_mes.empty else "—"
+val_destaque = por_mes.max()    if not por_mes.empty else 0
+n_tipos      = df_long["Descrição"].nunique()
 
 if st.session_state.acumulado:
     kpi4_val = f"{total_geral:,.0f}".replace(",",".")
     kpi4_lab = "Total acumulado (todos os meses)"
 else:
-    val_mes = df_long[df_long["Mês"] == st.session_state.mes_ativo]["Valor"].sum()
-    kpi4_val = f"{val_mes:,.0f}".replace(",",".")
-    kpi4_lab = f"Volume — {ABREV.get(st.session_state.mes_ativo,'')}"
+    val_mes   = df_long[df_long["Mês"] == st.session_state.mes_ativo]["Valor"].sum()
+    kpi4_val  = f"{val_mes:,.0f}".replace(",",".")
+    kpi4_lab  = f"Volume — {ABREV.get(st.session_state.mes_ativo,'')}"
 
 c1, c2, c3, c4 = st.columns(4)
 for col, val, lab in [
@@ -318,7 +337,7 @@ for col, val, lab in [
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Título + botão acumulado + pills de meses ──────────────────────────────────
+# ── Pills: título + [Acumulado] [Jan] … [Dez] ────────────────────────────────
 st.markdown(f"<h3 style='color:{T['text_primary']};margin-bottom:4px'>📅 Veículos por tipo</h3>",
             unsafe_allow_html=True)
 st.markdown(
@@ -327,15 +346,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Linha de controles: [Acumulado] [Jan] [Fev] ... [Dez]
-acum_label = "📊 Acumulado ✓" if st.session_state.acumulado else "📊 Acumulado"
-all_buttons = [acum_label] + [ABREV.get(m, m) for m in MESES]
-cols_ctrl   = st.columns([1.4] + [1] * len(MESES))
+cols_ctrl = st.columns([1.4] + [1] * len(MESES))
 
-# Botão Acumulado
 with cols_ctrl[0]:
-    is_acum = st.session_state.acumulado
-    if is_acum:
+    if st.session_state.acumulado:
         st.markdown(f"""
         <div style="text-align:center;padding:7px 4px;border-radius:999px;
           background:{COR_SECAO};color:white;font-size:.72rem;font-weight:700;
@@ -346,9 +360,8 @@ with cols_ctrl[0]:
             st.session_state.acumulado = True
             st.rerun()
 
-# Pills de meses
 for i, mes in enumerate(MESES):
-    abrev    = ABREV.get(mes, mes)
+    abrev     = ABREV.get(mes, mes)
     is_active = (not st.session_state.acumulado) and (mes == st.session_state.mes_ativo)
     with cols_ctrl[i + 1]:
         if is_active:
@@ -365,14 +378,14 @@ for i, mes in enumerate(MESES):
 
 st.markdown("<br style='margin:0'>", unsafe_allow_html=True)
 
-# ── Dados do gráfico ──────────────────────────────────────────────────────────
-if st.session_state.acumulado:
-    df_grafico   = get_acumulado_df()
-    titulo_grafico = f"Acumulado 2026 — {metrica_label}"
-else:
-    df_grafico   = get_mes_df(st.session_state.mes_ativo)
-    titulo_grafico = f"{st.session_state.mes_ativo} — {metrica_label}"
+# ── Gráfico ───────────────────────────────────────────────────────────────────
+modo = "__acumulado__" if st.session_state.acumulado else st.session_state.mes_ativo
+df_grafico    = get_chart_df(modo)
+titulo_grafico = (f"Acumulado 2026 — {metrica_label}"
+                  if st.session_state.acumulado
+                  else f"{st.session_state.mes_ativo} — {metrica_label}")
 
+# Cores: barra com valor > 0 usa cor da seção; barra zerada usa cor de fundo
 cores_barra = [COR_SECAO if v > 0 else T["zero_bar"] for v in df_grafico["Valor"]]
 
 hover_tpl = (
@@ -381,6 +394,9 @@ hover_tpl = (
     f"<b style='font-size:18px;color:{COR_SECAO}'>%{{x:,.0f}}</b>"
     "<extra></extra>"
 )
+
+# ── Animação: height FIXO + transition no layout ──────────────────────────────
+CHART_HEIGHT = 560   # fixo → Plotly reutiliza o mesmo canvas → transição funciona
 
 fig = go.Figure()
 fig.add_trace(go.Bar(
@@ -392,7 +408,7 @@ fig.add_trace(go.Bar(
         lambda v: f"{int(v):,}".replace(",", ".") if v > 0 else ""
     ),
     textposition="outside",
-    textfont=dict(size=11, color=T["text_secondary"]),
+    textfont=dict(size=10, color=T["text_secondary"]),
     hovertemplate=hover_tpl,
     hoverlabel=dict(
         bgcolor=T["card_bg"],
@@ -404,39 +420,52 @@ fig.add_trace(go.Bar(
 ))
 
 fig.update_layout(
-    transition=dict(duration=550, easing="cubic-in-out", ordering="traces first"),
-    title=dict(text=titulo_grafico, font=dict(size=13, color=T["text_secondary"]),
-               x=0, xanchor="left", pad=dict(b=10)),
+    # ── Transição suave (mesmo estilo education dashboard) ──
+    transition=dict(
+        duration=600,
+        easing="cubic-in-out",
+        ordering="traces first",
+    ),
+    title=dict(
+        text=titulo_grafico,
+        font=dict(size=13, color=T["text_secondary"]),
+        x=0.01, xanchor="left", pad=dict(b=8, t=4),
+    ),
     plot_bgcolor=T["chart_bg"],
     paper_bgcolor=T["chart_bg"],
     font=dict(family="Arial", size=12, color=T["text_secondary"]),
     xaxis=dict(
-        gridcolor=T["chart_grid"], zeroline=False, showline=False,
-        tickfont=dict(size=11, color=T["text_muted"]),
-        title=dict(text=metrica_label, font=dict(size=12, color=T["text_muted"])),
+        gridcolor=T["chart_grid"],
+        zeroline=False,
+        showline=False,
+        tickfont=dict(size=10, color=T["text_muted"]),
+        title=dict(text=metrica_label, font=dict(size=11, color=T["text_muted"])),
+        range=[0, df_grafico["Valor"].max() * 1.18 if not df_grafico.empty else 1],
     ),
     yaxis=dict(
         gridcolor="rgba(0,0,0,0)",
-        tickfont=dict(size=11, color=T["text_primary"]),
+        tickfont=dict(size=10, color=T["text_primary"]),
         automargin=True,
+        # Ordem fixa garante animação por interpolação, não por reconstrução
+        categoryorder="array",
+        categoryarray=df_grafico["Descrição"].tolist(),
     ),
-    margin=dict(t=40, b=16, l=10, r=100),
-    height=max(420, len(df_grafico) * 36),
-    bargap=0.28, hoverdistance=20,
+    margin=dict(t=44, b=24, l=10, r=90),
+    height=CHART_HEIGHT,
+    bargap=0.30,
+    hoverdistance=20,
 )
 
-st.markdown("<div class='chart-card'>", unsafe_allow_html=True)
+# key fixo → Streamlit usa Plotly.react() → animação de transição ativa
 st.plotly_chart(fig, use_container_width=True,
                 config={"displayModeBar": False}, key="chart_main")
-st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Tabela detalhada (HTML para controle total do tema) ────────────────────────
+# ── Tabela HTML com tema ──────────────────────────────────────────────────────
 st.markdown(f"<h3 style='color:{T['text_primary']}'>📋 Tabela detalhada</h3>",
             unsafe_allow_html=True)
 
-# Monta pivot com dados reais
 tab_pivot = df_long.pivot_table(
     index="Descrição", columns="Mês", values="Valor", aggfunc="sum"
 ).fillna(0)
@@ -444,22 +473,18 @@ tab_pivot = tab_pivot.reindex(columns=[m for m in MESES if m in tab_pivot.column
 tab_pivot["TOTAL"] = tab_pivot.sum(axis=1)
 tab_pivot = tab_pivot.sort_values("TOTAL", ascending=False)
 
-# Cabeçalhos abreviados
 tab_cols_display = [ABREV.get(c, c) for c in tab_pivot.columns[:-1]] + ["TOTAL"]
 
-# Renderiza como HTML para respeitar o tema escuro/claro
 def fmt(v):
-    try:
-        return f"{int(float(v)):,}".replace(",",".")
-    except:
-        return str(v)
+    try:    return f"{int(float(v)):,}".replace(",",".")
+    except: return str(v)
 
 rows_html = ""
 for idx, (desc, row) in enumerate(tab_pivot.iterrows()):
     bg = T["tbl_row_alt"] if idx % 2 == 0 else T["tbl_bg"]
     cells = ""
     for ci, val in enumerate(row):
-        bold = " font-weight:700;" if ci == len(row)-1 else ""
+        bold  = " font-weight:700;" if ci == len(row)-1 else ""
         color = COR_SECAO if (ci == len(row)-1 and val > 0) else T["tbl_txt"]
         cells += (f"<td style='padding:7px 12px;border-bottom:1px solid {T['tbl_border']};"
                   f"color:{color};{bold}text-align:right'>{fmt(val)}</td>")
@@ -474,7 +499,7 @@ header_cells = "".join(
     for h in tab_cols_display
 )
 
-table_html = f"""
+st.markdown(f"""
 <div style="overflow-x:auto;border-radius:12px;border:1px solid {T['tbl_border']};
             margin-bottom:12px;max-height:420px;overflow-y:auto">
   <table style="width:100%;border-collapse:collapse;background:{T['tbl_bg']};
@@ -489,10 +514,8 @@ table_html = f"""
     <tbody>{rows_html}</tbody>
   </table>
 </div>
-"""
-st.markdown(table_html, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# ── Download ──────────────────────────────────────────────────────────────────
 buf = io.BytesIO()
 tab_pivot.to_excel(buf, index=True)
 st.download_button(
