@@ -104,7 +104,7 @@ def load_data(path: str):
     meses_disponiveis = [m for m in mes_ordem if m in {k[0] for k in col_map.values()}]
     return df, meses_disponiveis
 
-CSV_PATH = "Relat-rioDelf/Relatório_Balsa_Delfs_2026.csv"
+CSV_PATH = "Relatório_Balsa_Delfs_2026.csv"
 df_all, MESES = load_data(CSV_PATH)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
