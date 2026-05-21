@@ -180,7 +180,6 @@ def load_data(path: str):
         "Janeiro 2026","Fevereiro 2026","Março 2026","Abril 2026",
         "Maio 2026","Junho 2026","Julho 2026","Agosto 2026",
         "Setembro 2026","Outubro 2026","Novembro 2026","Dezembro 2026",
-        "Feriados Abril 2026","Feriados Maio 2026",
     ]
     meses_ok = [m for m in mes_ordem if m in {k[0] for k in col_map.values()}]
     return df, meses_ok
@@ -193,7 +192,6 @@ ABREV = {
     "Abril 2026":"Abr","Maio 2026":"Mai","Junho 2026":"Jun",
     "Julho 2026":"Jul","Agosto 2026":"Ago","Setembro 2026":"Set",
     "Outubro 2026":"Out","Novembro 2026":"Nov","Dezembro 2026":"Dez",
-    "Feriados Abril 2026":"Fer.Abr","Feriados Maio 2026":"Fer.Mai",
 }
 
 if st.session_state.mes_ativo not in MESES:
